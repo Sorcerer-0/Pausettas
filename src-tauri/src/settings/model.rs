@@ -173,9 +173,6 @@ pub struct PauseState {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CustomReminder {
     pub id: String,
     pub title: String,
@@ -207,6 +204,8 @@ impl Default for CustomReminder {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub categories: Categories,
     #[serde(default)]

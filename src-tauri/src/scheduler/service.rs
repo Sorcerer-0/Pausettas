@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use chrono::{DateTime, Local, NaiveDateTime, TimeDelta, TimeZone, Utc};
+use chrono::{DateTime, Local, NaiveDateTime, NaiveTime, TimeDelta, TimeZone, Utc};
 
 use super::idle::IdleDetector;
 use crate::settings::model::{CategoryKey, CustomReminder, Settings};
@@ -33,10 +33,19 @@ struct Trigger {
     interval_minutes: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomTrigger {
+    at: DateTime<Utc>,
+    schedule_type: String,
+    interval_minutes: u32,
+    time: NaiveTime,
+}
+
 #[derive(Default)]
 struct SchedulerState {
     triggers: HashMap<CategoryKey, Trigger>,
-    last_tick_at: Option<DateTime<Utc>>,\n    custom_triggers: HashMap<String, DateTime<Utc>>,
+    last_tick_at: Option<DateTime<Utc>>,
+    custom_triggers: HashMap<String, CustomTrigger>,
 }
 
 /// Owns *when* each reminder fires. Timestamps, never countdowns: comparing `now` against
