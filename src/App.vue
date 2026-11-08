@@ -1,0 +1,216 @@
+<script setup>
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import PauseMenu from "./components/PauseMenu.vue";
+import UiIcon from "./components/UiIcon.vue";
+import SaveErrorBanner from "./components/SaveErrorBanner.vue";
+import AboutView from "./views/AboutView.vue";
+import OnboardingView from "./views/OnboardingView.vue";
+import SettingsView from "./views/SettingsView.vue";
+import { useSettingsStore } from "./stores/settings.js";
+
+const AUTHOR_URL = "https://masih.dev";
+
+const store = useSettingsStore();
+// Rust injects the screen when it creates this window (see settings_window.rs); an
+// already-open window is told which screen to show with an event instead.
+const screen = ref(window.__PAUSETTA_SCREEN__ ?? "settings");
+const loadError = ref("");
+
+let stopListening = [];
+
+// Shown once per install; Rust persists the flag in SQLite, so it survives frontend
+// rebuilds and only resets if the app's local data is deleted.
+const isOnboarding = computed(
+  () => Boolean(store.settings) && !store.settings.onboardingCompleted,
+);
+
+// A failed listener must not stop settings from loading, or the window stays blank, so
+// failures are logged and the listeners that did register are kept.
+async function registerWindowListeners() {
+  const registrations = await Promise.allSettled([
+    // Event names are defined in Rust (settings_window.rs, tray.rs); change both together.
+    listen("show-screen", (event) => (screen.value = event.payload)),
+    // The tray can pause or resume reminders behind this window's back.
+    listen("settings-changed", () =>
+      store.load().catch((error) => console.error("[pausetta] could not reload settings", error)),
+    ),
+  ]);
+  registrations
+    .filter((registration) => registration.status === "rejected")
+    .forEach((registration) =>
+      console.error("[pausetta] could not listen for window events", registration.reason),
+    );
+  return registrations
+    .filter((registration) => registration.status === "fulfilled")
+    .map((registration) => registration.value);
+}
+
+async function loadSettingsOrShowError() {
+  try {
+    await store.load();
+  } catch (error) {
+    loadError.value = String(error);
+  }
+}
+
+onMounted(async () => {
+  stopListening = await registerWindowListeners();
+  await loadSettingsOrShowError();
+});
+
+onUnmounted(() => stopListening.forEach((stop) => stop()));
+
+function completeOnboarding() {
+  store.update((settings) => (settings.onboardingCompleted = true));
+}
+
+function openAuthorSite() {
+  openUrl(AUTHOR_URL).catch((error) => console.error("[pausetta] could not open link", error));
+}
+</script>
+
+<template>
+  <template v-if="isOnboarding">
+    <SaveErrorBanner />
+    <OnboardingView @finish="completeOnboarding" />
+  </template>
+
+  <div
+    v-else
+    class="app"
+  >
+    <header class="app-header">
+      <template v-if="screen === 'settings'">
+        <PauseMenu v-if="store.settings" />
+        <span v-else />
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="About"
+          @click="screen = 'about'"
+        >
+          <UiIcon
+            name="info"
+            :size="15"
+            :stroke-width="1.8"
+          />
+        </button>
+      </template>
+      <button
+        v-else
+        type="button"
+        class="back-button"
+        @click="screen = 'settings'"
+      >
+        <UiIcon
+          name="chevron-left"
+          :stroke-width="2.2"
+        />
+        Back
+      </button>
+    </header>
+
+    <main>
+      <AboutView v-if="screen === 'about'" />
+      <p
+        v-else-if="loadError"
+        class="load-error"
+        role="alert"
+      >
+        Couldn't load settings: {{ loadError }}
+      </p>
+      <template v-else-if="store.settings">
+        <SaveErrorBanner />
+        <SettingsView />
+      </template>
+    </main>
+
+    <footer class="app-footer">
+      <span>Built by</span>
+      <!-- href keeps link semantics; the webview itself must not navigate, so Rust opens it. -->
+      <a
+        :href="AUTHOR_URL"
+        @click.prevent="openAuthorSite"
+      >MasihTak</a>
+    </footer>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 46px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+// A column so a short screen (About) can fill the window and centre itself, while a
+// tall one (Settings) keeps its natural height and scrolls.
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px 16px;
+  box-shadow: inset 0 1px 0 var(--border);
+  font-size: 11.5px;
+  color: var(--text3);
+
+  a {
+    font-weight: 600;
+  }
+}
+
+.icon-button,
+.back-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--border);
+  }
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+.back-button {
+  gap: 5px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+
+.load-error {
+  margin: 0;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--text2);
+}
+</style>
