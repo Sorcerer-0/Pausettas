@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import AboutView from "../src/views/AboutView.vue";
 import OnboardingView from "../src/views/OnboardingView.vue";
 import SettingsView from "../src/views/SettingsView.vue";
+import ClockView from "../src/views/ClockView.vue";
 import CategoryRow from "../src/components/CategoryRow.vue";
 import ToggleSwitch from "../src/components/ToggleSwitch.vue";
 import { CATEGORIES } from "../src/constants/categories.js";
@@ -144,6 +145,133 @@ describe("SettingsView", () => {
     expect(invoke).toHaveBeenLastCalledWith("update_settings", {
       settings: expect.objectContaining({ idlePause: { enabled: true, minutes: 15 } }),
     });
+  });
+});
+
+describe("ClockView", () => {
+  const STORAGE_KEY = "pausetta.clock-tools.v1";
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("starts and persists a countdown using an absolute deadline", async () => {
+    vi.useFakeTimers();
+    const clock = mount(ClockView, { props: { active: true } });
+    await flushPromises();
+
+    expect(clock.find(".clock-readout").text()).toBe("00:05:00");
+    await clock.find(".clock-actions .primary").trigger("click");
+
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(saved.timerEndAt).toBeGreaterThan(Date.now());
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(clock.find(".clock-readout").text()).toBe("00:04:59");
+
+    clock.unmount();
+    vi.useRealTimers();
+  });
+
+  it("pauses and resumes a countdown without resetting its remaining time", async () => {
+    vi.useFakeTimers();
+    const clock = mount(ClockView, { props: { active: true } });
+    await flushPromises();
+
+    await clock.find(".clock-actions .primary").trigger("click");
+    await vi.advanceTimersByTimeAsync(2000);
+    await clock.find(".clock-actions .primary").trigger("click");
+
+    const paused = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(paused.timerIsPaused).toBe(true);
+    expect(paused.timerRemainingMs).toBeLessThanOrEqual(298000);
+    expect(paused.timerRemainingMs).toBeGreaterThan(297000);
+
+    await clock.find(".clock-actions .primary").trigger("click");
+    const resumed = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(resumed.timerEndAt - Date.now()).toBe(paused.timerRemainingMs);
+
+    clock.unmount();
+    vi.useRealTimers();
+  });
+
+  it("runs the stopwatch and records lap times", async () => {
+    vi.useFakeTimers();
+    const clock = mount(ClockView, { props: { active: true } });
+    await flushPromises();
+
+    await clock.findAll(".clock-tabs button")[1].trigger("click");
+    await clock.find(".clock-actions .primary").trigger("click");
+    await vi.advanceTimersByTimeAsync(1250);
+    await clock.find(".clock-actions .secondary").trigger("click");
+
+    expect(clock.findAll(".lap-row")).toHaveLength(1);
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)).stopwatchLaps).toHaveLength(1);
+
+    clock.unmount();
+    vi.useRealTimers();
+  });
+
+  it("adds, disables, and deletes a daily alarm", async () => {
+    const clock = mount(ClockView, { props: { active: true } });
+    await flushPromises();
+
+    await clock.findAll(".clock-tabs button")[2].trigger("click");
+    await clock.find(".alarm-label input").setValue("Wake up");
+    await clock.find('input[type="time"]').setValue("07:45");
+    await clock.find(".add-alarm").trigger("click");
+
+    let saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(saved.alarms[0]).toMatchObject({
+      label: "Wake up",
+      time: "07:45",
+      repeat: "daily",
+      enabled: true,
+    });
+
+    await clock.find(".alarm-toggle").trigger("click");
+    saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(saved.alarms[0].enabled).toBe(false);
+
+    await clock.find(".delete-alarm").trigger("click");
+    saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    expect(saved.alarms).toHaveLength(0);
+
+    clock.unmount();
+  });
+
+  it("fires a one-time alarm in a persistent native reminder window", async () => {
+    vi.useFakeTimers();
+    const now = new Date();
+    now.setSeconds(0, 0);
+    vi.setSystemTime(now);
+    const pad = (value) => String(value).padStart(2, "0");
+    const time = pad(now.getHours()) + ":" + pad(now.getMinutes());
+    const date = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      alarms: [{
+        id: "wake",
+        label: "Wake up",
+        time,
+        date,
+        repeat: "once",
+        enabled: true,
+        lastFiredKey: "",
+      }],
+    }));
+    invoke.mockResolvedValue(undefined);
+
+    const clock = mount(ClockView, { props: { active: false } });
+    await flushPromises();
+
+    expect(invoke).toHaveBeenCalledWith("show_clock_alert", {
+      title: "Wake up",
+      description: "Alarm · " + time,
+    });
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)).alarms[0].enabled).toBe(false);
+
+    clock.unmount();
+    vi.useRealTimers();
   });
 });
 
