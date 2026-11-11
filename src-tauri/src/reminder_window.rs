@@ -163,7 +163,12 @@ pub fn show(app: &AppHandle, category: CategoryKey) -> tauri::Result<()> {
 }
 
 /// Opens a persistent centered alert window for a timer or clock alarm.
-pub fn show_clock_alert(app: &AppHandle, title: &str, description: &str) -> tauri::Result<()> {
+pub fn show_clock_alert(
+    app: &AppHandle,
+    title: &str,
+    description: &str,
+    play_sound: bool,
+) -> tauri::Result<()> {
     let stack = app.state::<ToastStack>();
     let (slot, label) = stack.reserve_slot(|label| app.get_webview_window(label).is_some());
     let payload = json!({
@@ -180,7 +185,9 @@ pub fn show_clock_alert(app: &AppHandle, title: &str, description: &str) -> taur
         spawn_cursor_poll(app);
     }
 
-    crate::sound::play_notification();
+    if play_sound {
+        crate::sound::play_notification();
+    }
     Ok(())
 }
 
