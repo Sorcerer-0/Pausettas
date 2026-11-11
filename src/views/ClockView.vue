@@ -112,6 +112,7 @@ function loadState() {
       timerRemainingMs.value = 0;
       timerCompleted.value = true;
       timerIsPaused.value = false;
+      saveState();
       showNotice("Timer finished", "Your countdown has reached zero.");
     }
   } catch (error) {
@@ -138,6 +139,11 @@ function dismissNotice(id) {
 
 function startTimer() {
   if (timerIsRunning.value) return;
+
+  timerHours.value = Math.min(99, Math.max(0, Math.floor(Number(timerHours.value) || 0)));
+  timerMinutes.value = Math.min(59, Math.max(0, Math.floor(Number(timerMinutes.value) || 0)));
+  timerSeconds.value = Math.min(59, Math.max(0, Math.floor(Number(timerSeconds.value) || 0)));
+
   const duration = timerIsPaused.value ? timerRemainingMs.value : timerInputMs.value;
   if (!Number.isFinite(duration) || duration <= 0) return;
   timerRemainingMs.value = duration;
@@ -196,7 +202,7 @@ function resetStopwatch() {
 }
 
 function addAlarm() {
-  if (!alarmTime.value) return;
+  if (!alarmTime.value || (alarmRepeat.value === "once" && alarmDate.value < todayKey())) return;
   alarms.value.push({
     id: Date.now() + "-" + Math.random().toString(36).slice(2),
     label: alarmLabel.value.trim() || "Alarm",
@@ -281,7 +287,10 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <nav class="clock-tabs" aria-label="Clock tools">
+    <nav
+      class="clock-tabs"
+      aria-label="Clock tools"
+    >
       <button
         type="button"
         :class="{ 'is-active': activeTab === 'timer' }"
@@ -322,7 +331,13 @@ onUnmounted(() => {
       </div>
 
       <div class="clock-actions">
-        <button v-if="!timerIsRunning" type="button" class="primary" :disabled="timerInputMs <= 0 && timerRemainingMs <= 0" @click="startTimer">
+        <button
+          v-if="!timerIsRunning"
+          type="button"
+          class="primary"
+          :disabled="(timerIsPaused ? timerRemainingMs : timerInputMs) <= 0"
+          @click="startTimer"
+        >
           {{ timerCompleted ? "Start again" : "Start" }}
         </button>
         <button v-else type="button" class="primary" @click="pauseTimer">Pause</button>
@@ -378,7 +393,14 @@ onUnmounted(() => {
           <span>Date</span>
           <input v-model="alarmDate" type="date" :min="todayKey()" />
         </label>
-        <button type="button" class="primary add-alarm" @click="addAlarm">Add alarm</button>
+        <button
+          type="button"
+          class="primary add-alarm"
+          :disabled="!alarmTime || (alarmRepeat === 'once' && alarmDate < todayKey())"
+          @click="addAlarm"
+        >
+          Add alarm
+        </button>
       </div>
 
       <div class="alarm-list">
