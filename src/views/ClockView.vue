@@ -157,6 +157,13 @@ function pauseTimer() {
   if (!timerEndAt.value) return;
   timerRemainingMs.value = Math.max(0, timerEndAt.value - Date.now());
   timerEndAt.value = null;
+  if (timerRemainingMs.value === 0) {
+    timerIsPaused.value = false;
+    timerCompleted.value = true;
+    saveState();
+    showNotice("Timer finished", "Your countdown has reached zero.");
+    return;
+  }
   timerIsPaused.value = true;
   saveState();
 }
@@ -234,6 +241,11 @@ function checkAlarms(currentTime) {
 
   for (const alarm of alarms.value) {
     if (!alarm.enabled) continue;
+    if (alarm.repeat === "once" && alarm.date < date) {
+      alarm.enabled = false;
+      changed = true;
+      continue;
+    }
     const isToday = alarm.repeat === "daily" || alarm.date === date;
     if (!isToday || alarm.time !== clock) continue;
 
@@ -266,7 +278,7 @@ function tick() {
 
 onMounted(() => {
   loadState();
-  ticker = window.setInterval(tick, 250);
+  ticker = window.setInterval(tick, 50);
   tick();
 });
 
@@ -338,7 +350,7 @@ onUnmounted(() => {
             type="number"
             min="0"
             max="99"
-            :disabled="timerIsRunning"
+            :disabled="timerIsRunning || timerIsPaused"
           />
         </label>
         <label>
