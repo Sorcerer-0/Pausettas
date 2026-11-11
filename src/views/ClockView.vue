@@ -113,19 +113,17 @@ function loadState() {
   }
 }
 
-function playAlarmSound() {
-  invoke("play_alarm_sound").catch((error) =>
-    console.warn("[pausetta] could not play the alarm sound", error),
-  );
-}
-
-function showNotice(title, message) {
-  notices.value.push({
-    id: Date.now() + "-" + Math.random().toString(36).slice(2),
-    title,
-    message,
-  });
-  playAlarmSound();
+async function showNotice(title, message) {
+  try {
+    await invoke("show_clock_alert", { title, description: message });
+  } catch (error) {
+    console.error("[pausetta] could not open the clock alert window", error);
+    notices.value.push({
+      id: Date.now() + "-" + Math.random().toString(36).slice(2),
+      title,
+      message,
+    });
+  }
 }
 
 function dismissNotice(id) {
@@ -231,13 +229,8 @@ function checkAlarms(currentTime) {
 
     alarm.lastFiredKey = occurrenceKey;
     if (alarm.repeat === "once") alarm.enabled = false;
-    notices.value.push({
-      id: "alarm-" + alarm.id + "-" + occurrenceKey,
-      title: alarm.label,
-      message: "Alarm · " + alarm.time,
-    });
+    showNotice(alarm.label, "Alarm · " + alarm.time);
     changed = true;
-    playAlarmSound();
   }
 
   if (changed) saveState();
