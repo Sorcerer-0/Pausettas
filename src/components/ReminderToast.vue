@@ -26,7 +26,6 @@ const intervalMinutes = computed(
   () => store.settings?.categories?.[categoryKey]?.intervalMinutes,
 );
 
-
 // The window is larger than the card to fit its glow. Rust makes that invisible margin
 // click-through, so it needs to know where the card is.
 function reportCardBounds() {
@@ -41,7 +40,6 @@ onMounted(() => {
   // Again once the entrance animation ends: it moves the card, and Rust keeps the last report.
   reportCardBounds();
 });
-
 
 function dismiss() {
   invoke("close_reminder").catch((error) => console.error("[pausetta] could not close reminder", error));
@@ -136,7 +134,6 @@ function snooze() {
           </div>
         </div>
       </div>
-
     </article>
   </div>
 </template>
@@ -411,5 +408,4 @@ function snooze() {
     transform: translateY(-14px) scale(0.97);
   }
 }
-
 </style>
