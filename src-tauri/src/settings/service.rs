@@ -237,10 +237,10 @@ mod tests {
     use std::cell::RefCell;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use chrono::NaiveTime;
+    use chrono::{NaiveTime, Timelike};
 
     use super::*;
-    use crate::settings::model::time_of_day;
+    use crate::settings::model::{time_of_day, ClockAlarm};
     use crate::settings::repository::SqliteSettingsRepository;
 
     #[derive(Default)]
@@ -353,6 +353,78 @@ mod tests {
             Err(SettingsError::Validation(_))
         ));
         assert_eq!(service.get(), Settings::default());
+    }
+
+    #[test]
+    fn daily_clock_alarms_fire_once_per_local_day() {
+        let service = service();
+        let now = Utc::now();
+        let local_now = now.with_timezone(&Local);
+        let time = time_of_day(local_now.hour(), local_now.minute());
+        let date_key = local_now.date_naive().format("%Y-%m-%d").to_string();
+        let mut requested = Settings::default();
+        requested.clock_alarms.push(ClockAlarm {
+            id: "daily".into(),
+            label: "Daily alarm".into(),
+            time,
+            date: None,
+            repeat: "daily".into(),
+            enabled: true,
+            last_fired_key: None,
+        });
+        service
+            .update(requested, &FakeLoginItem::default())
+            .unwrap();
+
+        let alerts = service.take_due_clock_alerts(now).unwrap();
+        assert_eq!(
+            alerts,
+            [("Daily alarm".into(), format!("Alarm · {}", time.format("%H:%M")))]
+        );
+        assert!(service
+            .take_due_clock_alerts(now + TimeDelta::seconds(20))
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            service.get().clock_alarms[0].last_fired_key.as_deref(),
+            Some(date_key.as_str())
+        );
+    }
+
+    #[test]
+    fn one_time_alarms_disable_and_timer_deadlines_are_consumed() {
+        let service = service();
+        let now = Utc::now();
+        let local_now = now.with_timezone(&Local);
+        let time = time_of_day(local_now.hour(), local_now.minute());
+        let date = local_now.date_naive().format("%Y-%m-%d").to_string();
+        let mut requested = Settings::default();
+        requested.clock_timer_end_at = Some(now - TimeDelta::seconds(1));
+        requested.clock_alarms.push(ClockAlarm {
+            id: "once".into(),
+            label: "One-time alarm".into(),
+            time,
+            date: Some(date),
+            repeat: "once".into(),
+            enabled: true,
+            last_fired_key: None,
+        });
+        service
+            .update(requested, &FakeLoginItem::default())
+            .unwrap();
+
+        let alerts = service.take_due_clock_alerts(now).unwrap();
+        assert_eq!(alerts.len(), 2);
+        assert_eq!(alerts[0].0, "Timer finished");
+        assert_eq!(alerts[1].0, "One-time alarm");
+
+        let saved = service.get();
+        assert!(saved.clock_timer_end_at.is_none());
+        assert!(!saved.clock_alarms[0].enabled);
+        assert!(service
+            .take_due_clock_alerts(now + TimeDelta::seconds(20))
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
