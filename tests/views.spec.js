@@ -167,6 +167,7 @@ describe("ClockView", () => {
     expect(saved.timerEndAt).toBeGreaterThan(Date.now());
 
     await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
     expect(clock.find(".clock-readout").text()).toBe("00:04:59");
 
     clock.unmount();
@@ -203,6 +204,7 @@ describe("ClockView", () => {
     await clock.findAll(".clock-tabs button")[1].trigger("click");
     await clock.find(".clock-actions .primary").trigger("click");
     await vi.advanceTimersByTimeAsync(1250);
+    await flushPromises();
     await clock.find(".clock-actions .secondary").trigger("click");
 
     expect(clock.findAll(".lap-row")).toHaveLength(1);
