@@ -32,13 +32,11 @@ const timerInputMs = computed(
     (Number(timerMinutes.value) * 60) +
     Number(timerSeconds.value)) * 1000,
 );
-const timerDisplayMs = computed(() =>
-  timerIsRunning.value
-    ? Math.max(0, timerEndAt.value - now.value)
-    : timerIsPaused.value
-      ? timerRemainingMs.value
-      : timerInputMs.value,
-);
+const timerDisplayMs = computed(() => {
+  if (timerCompleted.value) return 0;
+  if (timerIsRunning.value) return Math.max(0, timerEndAt.value - now.value);
+  return timerIsPaused.value ? timerRemainingMs.value : timerInputMs.value;
+});
 
 // Stopwatch stores an accumulated duration plus its current start timestamp.
 const stopwatchStartedAt = ref(null);
@@ -57,6 +55,12 @@ const alarmDate = ref(todayKey());
 const alarmRepeat = ref("daily");
 
 let ticker = null;
+
+watch(timerInputMs, () => {
+  if (timerIsRunning.value || timerIsPaused.value) return;
+  timerCompleted.value = false;
+  saveState();
+});
 
 function formatTimer(milliseconds) {
   const total = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -112,7 +116,7 @@ function loadState() {
 }
 
 async function startTimer() {
-  if (timerIsRunning.value) return;
+  if (timerIsRunning.value || !store.settings) return;
 
   timerHours.value = Math.min(99, Math.max(0, Math.floor(Number(timerHours.value) || 0)));
   timerMinutes.value = Math.min(59, Math.max(0, Math.floor(Number(timerMinutes.value) || 0)));
@@ -133,7 +137,7 @@ async function startTimer() {
 }
 
 async function pauseTimer() {
-  if (!timerEndAt.value) return;
+  if (!timerEndAt.value || !store.settings) return;
   timerRemainingMs.value = Math.max(0, timerEndAt.value - Date.now());
   if (timerRemainingMs.value === 0) {
     timerIsPaused.value = false;
@@ -151,6 +155,7 @@ async function pauseTimer() {
 }
 
 async function resetTimer() {
+  if (!store.settings) return;
   await store.update((settings) => {
     settings.clockTimerEndAt = null;
   });
@@ -194,7 +199,7 @@ function resetStopwatch() {
 }
 
 async function addAlarm() {
-  if (!alarmTime.value || (alarmRepeat.value === "once" && alarmDate.value < todayKey())) return;
+  if (!store.settings || !alarmTime.value || (alarmRepeat.value === "once" && alarmDate.value < todayKey())) return;
   const alarm = {
     id: Date.now() + "-" + Math.random().toString(36).slice(2),
     label: alarmLabel.value.trim() || "Alarm",
@@ -213,6 +218,7 @@ async function addAlarm() {
 }
 
 async function toggleAlarm(alarm) {
+  if (!store.settings) return;
   await store.update((settings) => {
     const target = settings.clockAlarms.find((item) => item.id === alarm.id);
     if (target) target.enabled = !target.enabled;
@@ -220,6 +226,7 @@ async function toggleAlarm(alarm) {
 }
 
 async function deleteAlarm(id) {
+  if (!store.settings) return;
   await store.update((settings) => {
     settings.clockAlarms = settings.clockAlarms.filter((alarm) => alarm.id !== id);
   });
@@ -503,34 +510,6 @@ onUnmounted(() => {
     </section>
   </section>
 
-  <Teleport to="body">
-    <div
-      v-if="notices.length"
-      class="notice-backdrop"
-      role="presentation"
-    >
-      <section
-        class="notice-card"
-        role="alertdialog"
-        aria-modal="true"
-      >
-        <p class="clock-kicker">PAUSETTA ALERT</p>
-        <article
-          v-for="notice in notices"
-          :key="notice.id"
-          class="notice-item"
-        >
-          <h2>{{ notice.title }}</h2>
-          <p>{{ notice.message }}</p>
-          <button
-            type="button"
-            class="primary"
-            @click="dismissNotice(notice.id)"
-          >Dismiss</button>
-        </article>
-      </section>
-    </div>
-  </Teleport>
 </template>
 
 <style
@@ -821,47 +800,4 @@ button:disabled {
   font-size: 18px;
 }
 
-.notice-backdrop {
-  position: fixed;
-  z-index: 10000;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(10, 12, 11, 0.52);
-  backdrop-filter: blur(5px);
-}
-
-.notice-card {
-  width: min(390px, 100%);
-  max-height: min(80vh, 600px);
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid var(--border-strong);
-  border-radius: 16px;
-  background: var(--card);
-  box-shadow: var(--shadow);
-}
-
-.notice-item {
-  padding: 15px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.notice-item:last-child {
-  border-bottom: 0;
-}
-
-.notice-item h2 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--text);
-}
-
-.notice-item p {
-  margin: 6px 0 13px;
-  font-size: 12.5px;
-  color: var(--text2);
-}
 </style>
