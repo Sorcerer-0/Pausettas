@@ -40,11 +40,12 @@ const SCHEMA: &str = "
 /// silently swallowed. Databases from before this tracking existed are already at
 /// user_version 0 but may already have migration 0's column, so that one migration alone
 /// is skipped when the column exists; every other error still propagates.
-const MIGRATIONS: [&str; 2] =
-    [
-        "ALTER TABLE app_settings ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE app_settings ADD COLUMN custom_reminders TEXT NOT NULL DEFAULT '[]'",
-    ];
+const MIGRATIONS: [&str; 4] = [
+    "ALTER TABLE app_settings ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE app_settings ADD COLUMN custom_reminders TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE app_settings ADD COLUMN clock_alarms TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE app_settings ADD COLUMN clock_timer_end_at TEXT",
+];
 
 pub struct SqliteSettingsRepository {
     connection: Mutex<Connection>,
@@ -97,7 +98,7 @@ impl SettingsRepository for SqliteSettingsRepository {
         let mut settings = connection.query_row(
             "SELECT quiet_enabled, quiet_start, quiet_end, idle_pause_enabled, idle_minutes,
                     launch_on_login, sound_enabled, pause_kind, paused_until,
-                    onboarding_completed, custom_reminders
+                    onboarding_completed, custom_reminders, clock_alarms, clock_timer_end_at
              FROM app_settings WHERE id = 1",
             [],
             |row| {
@@ -117,6 +118,11 @@ impl SettingsRepository for SqliteSettingsRepository {
                     pause: read_pause(row.get(7)?, row.get(8)?),
                     onboarding_completed: row.get(9)?,
                     custom_reminders: serde_json::from_str(&row.get::<_, String>(10)?).unwrap_or_default(),
+                    clock_alarms: serde_json::from_str(&row.get::<_, String>(11)?).unwrap_or_default(),
+                    clock_timer_end_at: row
+                        .get::<_, Option<String>>(12)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc)),
                 })
             },
         )?;
@@ -149,8 +155,8 @@ impl SettingsRepository for SqliteSettingsRepository {
             "INSERT OR REPLACE INTO app_settings
                 (id, quiet_enabled, quiet_start, quiet_end, idle_pause_enabled, idle_minutes,
                  launch_on_login, sound_enabled, pause_kind, paused_until,
-                 onboarding_completed, custom_reminders)
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                 onboarding_completed, custom_reminders, clock_alarms, clock_timer_end_at)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 settings.quiet_hours.enabled,
                 format_time_of_day(&settings.quiet_hours.start),
@@ -166,6 +172,8 @@ impl SettingsRepository for SqliteSettingsRepository {
                     .map(|pause| pause.until.to_rfc3339()),
                 settings.onboarding_completed,
                 serde_json::to_string(&settings.custom_reminders).unwrap_or_else(|_| "[]".into()),
+                serde_json::to_string(&settings.clock_alarms).unwrap_or_else(|_| "[]".into()),
+                settings.clock_timer_end_at.as_ref().map(|value| value.to_rfc3339()),
             ],
         )?;
 
