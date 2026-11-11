@@ -16,7 +16,7 @@ use crate::window_script::{initialization_script, options_global};
 const REMINDER_WINDOW_LABEL_PREFIX: &str = "reminder-";
 // Sized for the enlarged 700px reminder card, with room for its shadow and glow.
 const WINDOW_WIDTH: f64 = 760.0;
-const WINDOW_HEIGHT: f64 = 440.0;
+const WINDOW_HEIGHT: f64 = 540.0;
 // Small alternating offsets keep simultaneous reminders grouped around the screen center.
 const STACK_CASCADE_X: f64 = 42.0;
 const STACK_CASCADE_Y: f64 = 32.0;
@@ -162,6 +162,28 @@ pub fn show(app: &AppHandle, category: CategoryKey) -> tauri::Result<()> {
     Ok(())
 }
 
+
+/// Opens a persistent centered alert window for a timer or clock alarm.
+pub fn show_clock_alert(app: &AppHandle, title: &str, description: &str) -> tauri::Result<()> {
+    let stack = app.state::<ToastStack>();
+    let (slot, label) = stack.reserve_slot(|label| app.get_webview_window(label).is_some());
+    let payload = json!({
+        "title": title,
+        "description": description,
+    });
+
+    if let Err(error) = build_window(app, CategoryKey::Eye, slot, &label, Some(payload)) {
+        stack.release(&label);
+        return Err(error);
+    }
+
+    if stack.mark_built(&label) {
+        spawn_cursor_poll(app);
+    }
+
+    crate::sound::play_notification();
+    Ok(())
+}
 
 pub fn show_custom(app: &AppHandle, reminder: &CustomReminder) -> tauri::Result<()> {
     let stack = app.state::<ToastStack>();
@@ -325,10 +347,10 @@ mod tests {
 
     fn card() -> CardBounds {
         CardBounds {
-            left: 28.0,
-            top: 100.0,
-            right: 380.0,
-            bottom: 280.0,
+            left: 30.0,
+            top: 30.0,
+            right: 730.0,
+            bottom: 510.0,
         }
     }
 
