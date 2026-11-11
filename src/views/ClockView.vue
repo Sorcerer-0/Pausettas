@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
 const props = defineProps({
@@ -21,6 +21,7 @@ const timerSeconds = ref(0);
 const timerRemainingMs = ref(300000);
 const timerEndAt = ref(null);
 const timerCompleted = ref(false);
+const timerIsPaused = ref(false);
 const timerIsRunning = computed(() => timerEndAt.value !== null);
 const timerInputMs = computed(
   () => ((Number(timerHours.value) * 3600) +
@@ -30,7 +31,9 @@ const timerInputMs = computed(
 const timerDisplayMs = computed(() =>
   timerIsRunning.value
     ? Math.max(0, timerEndAt.value - now.value)
-    : timerRemainingMs.value,
+    : timerIsPaused.value
+      ? timerRemainingMs.value
+      : timerInputMs.value,
 );
 
 // Stopwatch stores an accumulated duration plus its current start timestamp.
@@ -78,6 +81,7 @@ function saveState() {
       timerRemainingMs: timerRemainingMs.value,
       timerEndAt: timerEndAt.value,
       timerCompleted: timerCompleted.value,
+      timerIsPaused: timerIsPaused.value,
       stopwatchStartedAt: stopwatchStartedAt.value,
       stopwatchElapsedBeforeStart: stopwatchElapsedBeforeStart.value,
       stopwatchLaps: stopwatchLaps.value,
@@ -97,6 +101,7 @@ function loadState() {
     timerRemainingMs.value = Number(saved.timerRemainingMs ?? 300000);
     timerEndAt.value = saved.timerEndAt ?? null;
     timerCompleted.value = Boolean(saved.timerCompleted);
+    timerIsPaused.value = Boolean(saved.timerIsPaused);
     stopwatchStartedAt.value = saved.stopwatchStartedAt ?? null;
     stopwatchElapsedBeforeStart.value = Number(saved.stopwatchElapsedBeforeStart ?? 0);
     stopwatchLaps.value = Array.isArray(saved.stopwatchLaps) ? saved.stopwatchLaps : [];
@@ -106,6 +111,7 @@ function loadState() {
       timerEndAt.value = null;
       timerRemainingMs.value = 0;
       timerCompleted.value = true;
+      timerIsPaused.value = false;
       showNotice("Timer finished", "Your countdown has reached zero.");
     }
   } catch (error) {
@@ -132,11 +138,10 @@ function dismissNotice(id) {
 
 function startTimer() {
   if (timerIsRunning.value) return;
-  const duration = timerRemainingMs.value > 0 && !timerCompleted.value
-    ? timerRemainingMs.value
-    : timerInputMs.value;
+  const duration = timerIsPaused.value ? timerRemainingMs.value : timerInputMs.value;
   if (!Number.isFinite(duration) || duration <= 0) return;
   timerRemainingMs.value = duration;
+  timerIsPaused.value = false;
   timerCompleted.value = false;
   timerEndAt.value = Date.now() + duration;
   saveState();
@@ -146,12 +151,14 @@ function pauseTimer() {
   if (!timerEndAt.value) return;
   timerRemainingMs.value = Math.max(0, timerEndAt.value - Date.now());
   timerEndAt.value = null;
+  timerIsPaused.value = true;
   saveState();
 }
 
 function resetTimer() {
   timerEndAt.value = null;
   timerRemainingMs.value = timerInputMs.value;
+  timerIsPaused.value = false;
   timerCompleted.value = false;
   saveState();
 }
@@ -243,19 +250,13 @@ function tick() {
     timerEndAt.value = null;
     timerRemainingMs.value = 0;
     timerCompleted.value = true;
+    timerIsPaused.value = false;
     saveState();
     showNotice("Timer finished", "Your countdown has reached zero.");
   }
 
   checkAlarms(new Date(now.value));
 }
-
-watch(timerInputMs, (duration) => {
-  if (timerIsRunning.value) return;
-  timerRemainingMs.value = duration;
-  timerCompleted.value = false;
-  saveState();
-});
 
 onMounted(() => {
   loadState();
