@@ -162,7 +162,6 @@ pub fn show(app: &AppHandle, category: CategoryKey) -> tauri::Result<()> {
     Ok(())
 }
 
-
 /// Opens a persistent centered alert window for a timer or clock alarm.
 pub fn show_clock_alert(app: &AppHandle, title: &str, description: &str) -> tauri::Result<()> {
     let stack = app.state::<ToastStack>();
@@ -208,7 +207,14 @@ fn build_window(
 ) -> tauri::Result<()> {
     // The frontend reads these globals to render the toast instead of the Settings UI.
     let mut globals = vec![
-        ("__PAUSETTA_REMINDER_CATEGORY__", json!(if custom.is_some() { "custom" } else { category.as_str() })),
+        (
+            "__PAUSETTA_REMINDER_CATEGORY__",
+            json!(if custom.is_some() {
+                "custom"
+            } else {
+                category.as_str()
+            }),
+        ),
         options_global(),
     ];
     if let Some(payload) = custom {
@@ -328,8 +334,10 @@ fn centered_position_for_slot(
     let center_y = area_position.y + (area_size.height - WINDOW_HEIGHT) / 2.0;
     let max_x = (area_position.x + area_size.width - WINDOW_WIDTH).max(area_position.x);
     let max_y = (area_position.y + area_size.height - WINDOW_HEIGHT).max(area_position.y);
-    let x = (center_x + direction * layer * STACK_CASCADE_X).clamp(area_position.x, max_x);
-    let y = (center_y + direction * layer * STACK_CASCADE_Y).clamp(area_position.y, max_y);
+    let x = (center_x + direction * layer * STACK_CASCADE_X)
+        .clamp(area_position.x, max_x);
+    let y = (center_y + direction * layer * STACK_CASCADE_Y)
+        .clamp(area_position.y, max_y);
     Ok(Some(LogicalPosition::new(x, y)))
 }
 
