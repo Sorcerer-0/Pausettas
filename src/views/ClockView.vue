@@ -74,7 +74,7 @@ function formatStopwatch(milliseconds) {
 
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       timerHours: timerHours.value,
       timerMinutes: timerMinutes.value,
       timerSeconds: timerSeconds.value,
@@ -94,7 +94,7 @@ function saveState() {
 
 function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
     timerHours.value = Number(saved.timerHours ?? 0);
     timerMinutes.value = Number(saved.timerMinutes ?? 5);
     timerSeconds.value = Number(saved.timerSeconds ?? 0);
@@ -308,25 +308,58 @@ onUnmounted(() => {
       >Alarm</button>
     </nav>
 
-    <section v-if="activeTab === 'timer'" class="clock-panel">
+    <section
+      v-if="activeTab === 'timer'"
+      class="clock-panel"
+    >
       <p class="clock-kicker">COUNTDOWN TIMER</p>
-      <div class="clock-readout" role="timer">{{ formatTimer(timerDisplayMs) }}</div>
-      <p v-if="timerCompleted" class="clock-status is-complete">Time is up.</p>
-      <p v-else-if="timerIsRunning" class="clock-status">Timer is running</p>
-      <p v-else class="clock-status">Set a duration and start the countdown.</p>
+      <div
+        class="clock-readout"
+        role="timer"
+      >{{ formatTimer(timerDisplayMs) }}</div>
+      <p
+        v-if="timerCompleted"
+        class="clock-status is-complete"
+      >Time is up.</p>
+      <p
+        v-else-if="timerIsRunning"
+        class="clock-status"
+      >Timer is running</p>
+      <p
+        v-else
+        class="clock-status"
+      >Set a duration and start the countdown.</p>
 
       <div class="timer-inputs">
         <label>
           <span>Hours</span>
-          <input v-model.number="timerHours" type="number" min="0" max="99" :disabled="timerIsRunning" />
+          <input
+            v-model.number="timerHours"
+            type="number"
+            min="0"
+            max="99"
+            :disabled="timerIsRunning"
+          />
         </label>
         <label>
           <span>Minutes</span>
-          <input v-model.number="timerMinutes" type="number" min="0" max="59" :disabled="timerIsRunning" />
+          <input
+            v-model.number="timerMinutes"
+            type="number"
+            min="0"
+            max="59"
+            :disabled="timerIsRunning"
+          />
         </label>
         <label>
           <span>Seconds</span>
-          <input v-model.number="timerSeconds" type="number" min="0" max="59" :disabled="timerIsRunning" />
+          <input
+            v-model.number="timerSeconds"
+            type="number"
+            min="0"
+            max="59"
+            :disabled="timerIsRunning"
+          />
         </label>
       </div>
 
@@ -340,28 +373,70 @@ onUnmounted(() => {
         >
           {{ timerCompleted ? "Start again" : "Start" }}
         </button>
-        <button v-else type="button" class="primary" @click="pauseTimer">Pause</button>
-        <button type="button" class="secondary" @click="resetTimer">Reset</button>
+        <button
+          v-else
+          type="button"
+          class="primary"
+          @click="pauseTimer"
+        >Pause</button>
+        <button
+          type="button"
+          class="secondary"
+          @click="resetTimer"
+        >Reset</button>
       </div>
     </section>
 
-    <section v-else-if="activeTab === 'stopwatch'" class="clock-panel">
+    <section
+      v-else-if="activeTab === 'stopwatch'"
+      class="clock-panel"
+    >
       <p class="clock-kicker">STOPWATCH</p>
-      <div class="clock-readout" role="timer">{{ formatStopwatch(stopwatchElapsedMs) }}</div>
+      <div
+        class="clock-readout"
+        role="timer"
+      >{{ formatStopwatch(stopwatchElapsedMs) }}</div>
       <p class="clock-status">{{ stopwatchIsRunning ? "Stopwatch is running" : "Measure elapsed time and record laps." }}</p>
 
       <div class="clock-actions">
-        <button v-if="!stopwatchIsRunning" type="button" class="primary" @click="startStopwatch">
+        <button
+          v-if="!stopwatchIsRunning"
+          type="button"
+          class="primary"
+          @click="startStopwatch"
+        >
           {{ stopwatchElapsedBeforeStart > 0 ? "Resume" : "Start" }}
         </button>
-        <button v-else type="button" class="primary" @click="pauseStopwatch">Pause</button>
-        <button type="button" class="secondary" :disabled="!stopwatchIsRunning" @click="addLap">Lap</button>
-        <button type="button" class="secondary" :disabled="stopwatchIsRunning && stopwatchElapsedMs === 0" @click="resetStopwatch">Reset</button>
+        <button
+          v-else
+          type="button"
+          class="primary"
+          @click="pauseStopwatch"
+        >Pause</button>
+        <button
+          type="button"
+          class="secondary"
+          :disabled="!stopwatchIsRunning"
+          @click="addLap"
+        >Lap</button>
+        <button
+          type="button"
+          class="secondary"
+          :disabled="stopwatchIsRunning && stopwatchElapsedMs === 0"
+          @click="resetStopwatch"
+        >Reset</button>
       </div>
 
-      <div v-if="stopwatchLaps.length" class="lap-list">
+      <div
+        v-if="stopwatchLaps.length"
+        class="lap-list"
+      >
         <div class="lap-heading"><span>Lap</span><span>Split</span><span>Total</span></div>
-        <div v-for="lap in stopwatchLaps" :key="lap.number + '-' + lap.totalMs" class="lap-row">
+        <div
+          v-for="lap in stopwatchLaps"
+          :key="lap.number + '-' + lap.totalMs"
+          class="lap-row"
+        >
           <span>#{{ lap.number }}</span>
           <span>{{ formatStopwatch(lap.splitMs) }}</span>
           <span>{{ formatStopwatch(lap.totalMs) }}</span>
@@ -369,17 +444,28 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section v-else class="clock-panel alarm-panel">
+    <section
+      v-else
+      class="clock-panel alarm-panel"
+    >
       <p class="clock-kicker">ALARMS</p>
       <div class="alarm-create">
         <label class="alarm-label">
           <span>Alarm name</span>
-          <input v-model="alarmLabel" maxlength="60" placeholder="e.g. Wake up" />
+          <input
+            v-model="alarmLabel"
+            maxlength="60"
+            placeholder="e.g. Wake up"
+          />
         </label>
         <div class="alarm-fields">
           <label>
             <span>Time</span>
-            <input v-model="alarmTime" type="time" required />
+            <input
+              v-model="alarmTime"
+              type="time"
+              required
+            />
           </label>
           <label>
             <span>Repeat</span>
@@ -389,9 +475,16 @@ onUnmounted(() => {
             </select>
           </label>
         </div>
-        <label v-if="alarmRepeat === 'once'" class="alarm-label">
+        <label
+          v-if="alarmRepeat === 'once'"
+          class="alarm-label"
+        >
           <span>Date</span>
-          <input v-model="alarmDate" type="date" :min="todayKey()" />
+          <input
+            v-model="alarmDate"
+            type="date"
+            :min="todayKey()"
+          />
         </label>
         <button
           type="button"
@@ -404,17 +497,34 @@ onUnmounted(() => {
       </div>
 
       <div class="alarm-list">
-        <p v-if="!alarms.length" class="empty-alarms">No alarms yet. Add an alarm above.</p>
-        <article v-for="alarm in alarms" :key="alarm.id" class="alarm-item">
+        <p
+          v-if="!alarms.length"
+          class="empty-alarms"
+        >No alarms yet. Add an alarm above.</p>
+        <article
+          v-for="alarm in alarms"
+          :key="alarm.id"
+          class="alarm-item"
+        >
           <div class="alarm-time">
             <strong>{{ alarm.time }}</strong>
             <span>{{ alarm.label }} · {{ alarm.repeat === "daily" ? "Every day" : alarm.date }}</span>
           </div>
           <div class="alarm-controls">
-            <button type="button" class="alarm-toggle" :class="{ 'is-enabled': alarm.enabled }" @click="toggleAlarm(alarm)">
+            <button
+              type="button"
+              class="alarm-toggle"
+              :class="{ 'is-enabled': alarm.enabled }"
+              @click="toggleAlarm(alarm)"
+            >
               {{ alarm.enabled ? "On" : "Off" }}
             </button>
-            <button type="button" class="delete-alarm" aria-label="Delete alarm" @click="deleteAlarm(alarm.id)">×</button>
+            <button
+              type="button"
+              class="delete-alarm"
+              aria-label="Delete alarm"
+              @click="deleteAlarm(alarm.id)"
+            >×</button>
           </div>
         </article>
       </div>
@@ -422,20 +532,39 @@ onUnmounted(() => {
   </section>
 
   <Teleport to="body">
-    <div v-if="notices.length" class="notice-backdrop" role="presentation">
-      <section class="notice-card" role="alertdialog" aria-modal="true">
+    <div
+      v-if="notices.length"
+      class="notice-backdrop"
+      role="presentation"
+    >
+      <section
+        class="notice-card"
+        role="alertdialog"
+        aria-modal="true"
+      >
         <p class="clock-kicker">PAUSETTA ALERT</p>
-        <article v-for="notice in notices" :key="notice.id" class="notice-item">
+        <article
+          v-for="notice in notices"
+          :key="notice.id"
+          class="notice-item"
+        >
           <h2>{{ notice.title }}</h2>
           <p>{{ notice.message }}</p>
-          <button type="button" class="primary" @click="dismissNotice(notice.id)">Dismiss</button>
+          <button
+            type="button"
+            class="primary"
+            @click="dismissNotice(notice.id)"
+          >Dismiss</button>
         </article>
       </section>
     </div>
   </Teleport>
 </template>
 
-<style scoped lang="scss">
+<style
+  scoped
+  lang="scss"
+>
 .clock-tools {
   display: flex;
   flex: 1 0 auto;
