@@ -52,7 +52,7 @@ function snooze() {
 
 <template>
   <div
-    class="toast-stage"
+    class="toast-stage is-centered"
     class="toast-stage"
   >
     <article
