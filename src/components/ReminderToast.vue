@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import AppMark from "./AppMark.vue";
 import CategoryIcon from "./CategoryIcon.vue";
@@ -13,7 +13,6 @@ const categoryKey = window.__PAUSETTA_REMINDER_CATEGORY__;
 // Set by Rust in reminder_window.rs, from the same platform check that positions the window.
 const isTopAnchored = window.__PAUSETTA_REMINDER_ANCHOR__ === "top";
 
-const DEFAULT_AUTO_DISMISS_MS = 14_000;
 
 const card = ref(null);
 
@@ -26,28 +25,7 @@ const categoryColor = isCustom ? "var(--accent)" : `var(--cat-${categoryKey})`;
 const intervalMinutes = computed(
   () => store.settings?.categories?.[categoryKey]?.intervalMinutes,
 );
-const autoDismissMs = isCustom ? null : (category.toast.autoDismissMs ?? DEFAULT_AUTO_DISMISS_MS);
 
-let dismissTimer;
-let dismissDeadline;
-// Only meaningful between a pause (mouseenter) and the resume (mouseleave) that reads it.
-let remainingMs;
-
-function startDismissTimer(durationMs) {
-  clearTimeout(dismissTimer);
-  dismissDeadline = Date.now() + durationMs;
-  dismissTimer = setTimeout(dismiss, durationMs);
-}
-
-// The progress bar pauses on the same hover, in CSS.
-function pauseDismissTimer() {
-  clearTimeout(dismissTimer);
-  remainingMs = Math.max(0, dismissDeadline - Date.now());
-}
-
-function resumeDismissTimer() {
-  startDismissTimer(remainingMs);
-}
 
 // The window is larger than the card to fit its glow. Rust makes that invisible margin
 // click-through, so it needs to know where the card is.
@@ -60,15 +38,10 @@ function reportCardBounds() {
 
 onMounted(() => {
   store.load().catch((error) => console.error("[pausetta] could not load settings", error));
-  // An unattended reminder closes itself rather than waiting on the desk all afternoon.
-  if (!isCustom) startDismissTimer(autoDismissMs);
   // Again once the entrance animation ends: it moves the card, and Rust keeps the last report.
   reportCardBounds();
 });
 
-onUnmounted(() => {
-  clearTimeout(dismissTimer);
-});
 
 function dismiss() {
   invoke("close_reminder").catch((error) => console.error("[pausetta] could not close reminder", error));
@@ -92,8 +65,6 @@ function snooze() {
       class="toast"
       :style="{ '--cat': categoryColor }"
       @animationend.self="reportCardBounds"
-      @mouseenter="pauseDismissTimer"
-      @mouseleave="resumeDismissTimer"
     >
       <div class="toast__glow" />
 
@@ -166,12 +137,6 @@ function snooze() {
         </div>
       </div>
 
-      <div v-if="!isCustom" class="toast__progress">
-        <div
-          class="toast__progress-bar"
-          :style="{ animationDuration: `${autoDismissMs}ms` }"
-        />
-      </div>
     </article>
   </div>
 </template>
