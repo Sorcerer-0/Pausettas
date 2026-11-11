@@ -6,6 +6,7 @@ import PauseMenu from "./components/PauseMenu.vue";
 import UiIcon from "./components/UiIcon.vue";
 import SaveErrorBanner from "./components/SaveErrorBanner.vue";
 import AboutView from "./views/AboutView.vue";
+import ClockView from "./views/ClockView.vue";
 import OnboardingView from "./views/OnboardingView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import { useSettingsStore } from "./stores/settings.js";
@@ -85,19 +86,52 @@ function openAuthorSite() {
       <template v-if="screen === 'settings'">
         <PauseMenu v-if="store.settings" />
         <span v-else />
+        <div class="header-actions">
+          <button
+            type="button"
+            class="tools-button"
+            @click="screen = 'tools'"
+          >
+            <UiIcon name="timer" :size="14" />
+            Clock tools
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="About"
+            @click="screen = 'about'"
+          >
+            <UiIcon
+              name="info"
+              :size="15"
+              :stroke-width="1.8"
+            />
+          </button>
+        </div>
+      </template>
+
+      <template v-else-if="screen === 'tools'">
+        <button
+          type="button"
+          class="back-button"
+          @click="screen = 'settings'"
+        >
+          <UiIcon
+            name="chevron-left"
+            :stroke-width="2.2"
+          />
+          Back to settings
+        </button>
         <button
           type="button"
           class="icon-button"
           aria-label="About"
           @click="screen = 'about'"
         >
-          <UiIcon
-            name="info"
-            :size="15"
-            :stroke-width="1.8"
-          />
+          <UiIcon name="info" :size="15" :stroke-width="1.8" />
         </button>
       </template>
+
       <button
         v-else
         type="button"
@@ -113,15 +147,21 @@ function openAuthorSite() {
     </header>
 
     <main>
+      <!-- Kept mounted while hidden, so active countdowns and alarms keep ticking. -->
+      <ClockView
+        v-show="screen === 'tools'"
+        :active="screen === 'tools'"
+      />
+
       <AboutView v-if="screen === 'about'" />
       <p
-        v-else-if="loadError"
+        v-if="screen === 'settings' && loadError"
         class="load-error"
         role="alert"
       >
         Couldn't load settings: {{ loadError }}
       </p>
-      <template v-else-if="store.settings">
+      <template v-if="screen === 'settings' && !loadError && store.settings">
         <SaveErrorBanner />
         <SettingsView />
       </template>
@@ -176,6 +216,32 @@ main {
 
   a {
     font-weight: 600;
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tools-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--text2);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent);
+    color: var(--text);
   }
 }
 
