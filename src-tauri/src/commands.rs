@@ -45,17 +45,6 @@ pub async fn close_reminder(window: WebviewWindow) -> Result<(), String> {
     reminder_window::close(&window).map_err(|error| error.to_string())
 }
 
-// Clock alerts use the same centered, persistent reminder window as custom reminders.
-#[tauri::command]
-pub async fn show_clock_alert(
-    app: AppHandle,
-    title: String,
-    description: String,
-) -> Result<(), String> {
-    reminder_window::show_clock_alert(&app, &title, &description)
-        .map_err(|error| error.to_string())
-}
-
 #[tauri::command]
 pub fn set_toast_card_bounds(
     window: WebviewWindow,
