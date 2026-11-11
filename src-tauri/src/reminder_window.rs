@@ -14,13 +14,12 @@ use crate::settings::model::{CategoryKey, CustomReminder};
 use crate::window_script::{initialization_script, options_global};
 
 const REMINDER_WINDOW_LABEL_PREFIX: &str = "reminder-";
-// Larger than the 352px toast card so its glow and shadow fit inside the transparent window.
-const WINDOW_WIDTH: f64 = 408.0;
-const WINDOW_HEIGHT: f64 = 320.0;
-// The distance between stacked toasts: the 352x215 card plus a gap. Smaller than the window,
-// so it is the windows' transparent margins that overlap, never the cards.
-const STACK_OFFSET_X: f64 = 364.0;
-const STACK_OFFSET_Y: f64 = 232.0;
+// Sized for the enlarged 700px reminder card, with room for its shadow and glow.
+const WINDOW_WIDTH: f64 = 760.0;
+const WINDOW_HEIGHT: f64 = 440.0;
+// Small alternating offsets keep simultaneous reminders grouped around the screen center.
+const STACK_CASCADE_X: f64 = 42.0;
+const STACK_CASCADE_Y: f64 = 32.0;
 const CURSOR_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// The toast card inside its window, in CSS pixels from the window's top-left corner.
@@ -186,18 +185,8 @@ fn build_window(
     custom: Option<serde_json::Value>,
 ) -> tauri::Result<()> {
     // The frontend reads these globals to render the toast instead of the Settings UI.
-    // The anchor mirrors slot_position()'s own platform check below, so there is one
-    // source of truth for "which corner" instead of the frontend re-deriving it from
-    // navigator.userAgent.
-    let anchor = if cfg!(target_os = "macos") {
-        "top"
-    } else {
-        "bottom"
-    };
-    let is_custom = custom.is_some();
     let mut globals = vec![
         ("__PAUSETTA_REMINDER_CATEGORY__", json!(if custom.is_some() { "custom" } else { category.as_str() })),
-        ("__PAUSETTA_REMINDER_ANCHOR__", json!(anchor)),
         options_global(),
     ];
     if let Some(payload) = custom {
@@ -218,7 +207,7 @@ fn build_window(
         .focused(false)
         .initialization_script(&initialization_script);
 
-    let position = if is_custom { center_position(app)? } else { slot_position(app, slot)? };
+    let position = centered_position_for_slot(app, slot)?;
     if let Some(position) = position {
         builder = builder.position(position.x, position.y);
     }
@@ -299,82 +288,32 @@ fn is_cursor_over_card(
     x >= card.left && x < card.right && y >= card.top && y < card.bottom
 }
 
-/// How far a slot sits from the corner, as (columns across, rows along the edge). A new
-/// column starts once the work area is too short for another row, so a toast is never
-/// pushed off screen or onto another one.
-fn stack_offset(slot: usize, area_height: f64) -> (f64, f64) {
-    let spare_height = (area_height - WINDOW_HEIGHT).max(0.0);
-    let rows_per_column = (spare_height / STACK_OFFSET_Y) as usize + 1;
-    (
-        (slot / rows_per_column) as f64 * STACK_OFFSET_X,
-        (slot % rows_per_column) as f64 * STACK_OFFSET_Y,
-    )
-}
-
-
-fn center_position(app: &AppHandle) -> tauri::Result<Option<LogicalPosition<f64>>> {
+/// Places the first reminder at screen center. Additional reminders use small alternating
+/// offsets around that center so each remains visible and the stack stays in the central area.
+fn centered_position_for_slot(
+    app: &AppHandle,
+    slot: usize,
+) -> tauri::Result<Option<LogicalPosition<f64>>> {
     let Some(monitor) = app.primary_monitor()? else {
         return Ok(None);
     };
     let scale_factor = monitor.scale_factor();
     let area_position: LogicalPosition<f64> = monitor.work_area().position.to_logical(scale_factor);
     let area_size: LogicalSize<f64> = monitor.work_area().size.to_logical(scale_factor);
-    Ok(Some(LogicalPosition::new(
-        area_position.x + (area_size.width - WINDOW_WIDTH) / 2.0,
-        area_position.y + (area_size.height - WINDOW_HEIGHT) / 2.0,
-    )))
-}
-
-/// Top-right on macOS (where system notifications appear), bottom-right elsewhere,
-/// kept inside the work area so the menu bar or taskbar never covers it.
-fn slot_position(app: &AppHandle, slot: usize) -> tauri::Result<Option<LogicalPosition<f64>>> {
-    let Some(monitor) = app.primary_monitor()? else {
-        return Ok(None);
-    };
-    let scale_factor = monitor.scale_factor();
-    let area_position: LogicalPosition<f64> = monitor.work_area().position.to_logical(scale_factor);
-    let area_size: LogicalSize<f64> = monitor.work_area().size.to_logical(scale_factor);
-    let (offset_x, offset_y) = stack_offset(slot, area_size.height);
-
-    let x = area_position.x + area_size.width - WINDOW_WIDTH - offset_x;
-    let y = if cfg!(target_os = "macos") {
-        area_position.y + offset_y
-    } else {
-        area_position.y + area_size.height - WINDOW_HEIGHT - offset_y
-    };
+    let layer = slot.div_ceil(2) as f64;
+    let direction = if slot == 0 || slot % 2 == 1 { 1.0 } else { -1.0 };
+    let center_x = area_position.x + (area_size.width - WINDOW_WIDTH) / 2.0;
+    let center_y = area_position.y + (area_size.height - WINDOW_HEIGHT) / 2.0;
+    let max_x = (area_position.x + area_size.width - WINDOW_WIDTH).max(area_position.x);
+    let max_y = (area_position.y + area_size.height - WINDOW_HEIGHT).max(area_position.y);
+    let x = (center_x + direction * layer * STACK_CASCADE_X).clamp(area_position.x, max_x);
+    let y = (center_y + direction * layer * STACK_CASCADE_Y).clamp(area_position.y, max_y);
     Ok(Some(LogicalPosition::new(x, y)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn toasts_stack_in_a_column_while_the_screen_has_room() {
-        let tall_screen = 1040.0;
-
-        assert_eq!(stack_offset(0, tall_screen), (0.0, 0.0));
-        assert_eq!(stack_offset(1, tall_screen), (0.0, STACK_OFFSET_Y));
-        assert_eq!(stack_offset(3, tall_screen), (0.0, 3.0 * STACK_OFFSET_Y));
-    }
-
-    #[test]
-    fn a_short_screen_starts_a_second_column_instead_of_running_off_the_top() {
-        // 1080p at Windows' default 150% scaling leaves room for two rows.
-        let short_screen = 680.0;
-
-        assert_eq!(stack_offset(1, short_screen), (0.0, STACK_OFFSET_Y));
-        assert_eq!(stack_offset(2, short_screen), (STACK_OFFSET_X, 0.0));
-        assert_eq!(
-            stack_offset(3, short_screen),
-            (STACK_OFFSET_X, STACK_OFFSET_Y)
-        );
-    }
-
-    #[test]
-    fn a_screen_shorter_than_one_toast_still_gets_a_row() {
-        assert_eq!(stack_offset(1, 200.0), (STACK_OFFSET_X, 0.0));
-    }
 
     fn built_toast(label: &str) -> Option<Toast> {
         Some(Toast {
