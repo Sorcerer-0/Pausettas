@@ -5,7 +5,7 @@ use chrono::{DateTime, Local, TimeDelta, TimeZone, Utc};
 use crate::autostart::LoginItem;
 
 use super::error::SettingsError;
-use super::model::{PauseKind, PauseState, Settings};
+use super::model::{format_time_of_day, PauseKind, PauseState, Settings};
 use super::repository::SettingsRepository;
 
 pub struct SettingsService<R: SettingsRepository> {
@@ -83,6 +83,83 @@ impl<R: SettingsRepository> SettingsService<R> {
     /// the database is only written on the tick a pause actually ends.
     pub fn expire_pause(&self) -> Result<Settings, SettingsError> {
         self.expire_pause_at(Utc::now())
+    }
+
+    /// Atomically consumes clock alarms and timer deadlines that became due.
+    /// This runs from the Rust tray scheduler, so it does not depend on a Settings window.
+    pub fn take_due_clock_alerts(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<(String, String)>, SettingsError> {
+        let mut current = self.lock();
+        let mut updated = current.clone();
+        let mut alerts = Vec::new();
+        let mut has_changes = false;
+
+        if updated
+            .clock_timer_end_at
+            .as_ref()
+            .is_some_and(|deadline| deadline <= &now)
+        {
+            updated.clock_timer_end_at = None;
+            alerts.push((
+                "Timer finished".to_string(),
+                "Your countdown has reached zero.".to_string(),
+            ));
+            has_changes = true;
+        }
+
+        let local_now = now.with_timezone(&Local);
+        let today = local_now.date_naive().format("%Y-%m-%d").to_string();
+        let current_time = local_now.time().format("%H:%M").to_string();
+
+        for alarm in &mut updated.clock_alarms {
+            if !alarm.enabled {
+                continue;
+            }
+
+            if alarm.repeat == "once"
+                && alarm.date.as_deref().is_some_and(|date| date < today.as_str())
+            {
+                alarm.enabled = false;
+                has_changes = true;
+                continue;
+            }
+
+            let is_scheduled_for_today =
+                alarm.repeat == "daily" || alarm.date.as_deref() == Some(today.as_str());
+            if !is_scheduled_for_today
+                || format_time_of_day(&alarm.time) != current_time
+            {
+                continue;
+            }
+
+            let occurrence_key = if alarm.repeat == "daily" {
+                today.clone()
+            } else {
+                format!("{} {}", today, current_time)
+            };
+            if alarm.last_fired_key.as_deref() == Some(occurrence_key.as_str()) {
+                continue;
+            }
+
+            alarm.last_fired_key = Some(occurrence_key);
+            if alarm.repeat == "once" {
+                alarm.enabled = false;
+            }
+            alerts.push((
+                alarm.label.clone(),
+                format!("Alarm · {}", format_time_of_day(&alarm.time)),
+            ));
+            has_changes = true;
+        }
+
+        if has_changes {
+            self.repository.save(&updated)?;
+            *current = updated;
+        }
+
+        Ok(alerts)
     }
 
     fn expire_pause_at(&self, now: DateTime<Utc>) -> Result<Settings, SettingsError> {
