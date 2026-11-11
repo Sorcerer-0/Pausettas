@@ -428,7 +428,7 @@ mod tests {
         // (1400, 900) physical is (200, 200) in the window: on the card.
         assert!(is_over_card(1400.0, 900.0));
         // The left and top edges are inside the card, the right edge is outside.
-        assert!(is_over_card(1000.0 + 28.0 * 2.0, 900.0));
-        assert!(!is_over_card(1000.0 + 380.0 * 2.0, 900.0));
+        assert!(is_over_card(1000.0 + 30.0 * 2.0, 900.0));
+        assert!(!is_over_card(1000.0 + 730.0 * 2.0, 900.0));
     }
 }
