@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useSettingsStore } from "../stores/settings.js";
 
 const props = defineProps({
   active: { type: Boolean, default: false },
 });
 
+const store = useSettingsStore();
 const STORAGE_KEY = "pausetta.clock-tools.v1";
 const pad = (value) => String(value).padStart(2, "0");
 const todayKey = (date = new Date()) =>
@@ -19,7 +20,10 @@ const timerHours = ref(0);
 const timerMinutes = ref(5);
 const timerSeconds = ref(0);
 const timerRemainingMs = ref(300000);
-const timerEndAt = ref(null);
+const timerEndAt = computed(() => {
+  const value = store.settings?.clockTimerEndAt;
+  return value ? Date.parse(value) : null;
+});
 const timerCompleted = ref(false);
 const timerIsPaused = ref(false);
 const timerIsRunning = computed(() => timerEndAt.value !== null);
@@ -46,12 +50,11 @@ const stopwatchElapsedMs = computed(() =>
 const stopwatchIsRunning = computed(() => stopwatchStartedAt.value !== null);
 const stopwatchLaps = ref([]);
 
-const alarms = ref([]);
+const alarms = computed(() => store.settings?.clockAlarms ?? []);
 const alarmLabel = ref("");
 const alarmTime = ref("08:00");
 const alarmDate = ref(todayKey());
 const alarmRepeat = ref("daily");
-const notices = ref([]);
 
 let ticker = null;
 
@@ -79,13 +82,11 @@ function saveState() {
       timerMinutes: timerMinutes.value,
       timerSeconds: timerSeconds.value,
       timerRemainingMs: timerRemainingMs.value,
-      timerEndAt: timerEndAt.value,
       timerCompleted: timerCompleted.value,
       timerIsPaused: timerIsPaused.value,
       stopwatchStartedAt: stopwatchStartedAt.value,
       stopwatchElapsedBeforeStart: stopwatchElapsedBeforeStart.value,
       stopwatchLaps: stopwatchLaps.value,
-      alarms: alarms.value,
     }));
   } catch (error) {
     console.error("[pausetta] could not save clock tools", error);
@@ -99,45 +100,18 @@ function loadState() {
     timerMinutes.value = Number(saved.timerMinutes ?? 5);
     timerSeconds.value = Number(saved.timerSeconds ?? 0);
     timerRemainingMs.value = Number(saved.timerRemainingMs ?? 300000);
-    timerEndAt.value = saved.timerEndAt ?? null;
     timerCompleted.value = Boolean(saved.timerCompleted);
     timerIsPaused.value = Boolean(saved.timerIsPaused);
     stopwatchStartedAt.value = saved.stopwatchStartedAt ?? null;
     stopwatchElapsedBeforeStart.value = Number(saved.stopwatchElapsedBeforeStart ?? 0);
     stopwatchLaps.value = Array.isArray(saved.stopwatchLaps) ? saved.stopwatchLaps : [];
-    alarms.value = Array.isArray(saved.alarms) ? saved.alarms : [];
 
-    if (timerEndAt.value && timerEndAt.value <= Date.now()) {
-      timerEndAt.value = null;
-      timerRemainingMs.value = 0;
-      timerCompleted.value = true;
-      timerIsPaused.value = false;
-      saveState();
-      showNotice("Timer finished", "Your countdown has reached zero.");
-    }
   } catch (error) {
     console.error("[pausetta] could not load clock tools", error);
   }
 }
 
-async function showNotice(title, message) {
-  try {
-    await invoke("show_clock_alert", { title, description: message });
-  } catch (error) {
-    console.error("[pausetta] could not open the clock alert window", error);
-    notices.value.push({
-      id: Date.now() + "-" + Math.random().toString(36).slice(2),
-      title,
-      message,
-    });
-  }
-}
-
-function dismissNotice(id) {
-  notices.value = notices.value.filter((notice) => notice.id !== id);
-}
-
-function startTimer() {
+async function startTimer() {
   if (timerIsRunning.value) return;
 
   timerHours.value = Math.min(99, Math.max(0, Math.floor(Number(timerHours.value) || 0)));
@@ -146,30 +120,41 @@ function startTimer() {
 
   const duration = timerIsPaused.value ? timerRemainingMs.value : timerInputMs.value;
   if (!Number.isFinite(duration) || duration <= 0) return;
+
+  await store.update((settings) => {
+    settings.clockTimerEndAt = new Date(Date.now() + duration).toISOString();
+  });
+  if (!store.settings?.clockTimerEndAt) return;
+
   timerRemainingMs.value = duration;
   timerIsPaused.value = false;
   timerCompleted.value = false;
-  timerEndAt.value = Date.now() + duration;
   saveState();
 }
 
-function pauseTimer() {
+async function pauseTimer() {
   if (!timerEndAt.value) return;
   timerRemainingMs.value = Math.max(0, timerEndAt.value - Date.now());
-  timerEndAt.value = null;
   if (timerRemainingMs.value === 0) {
     timerIsPaused.value = false;
     timerCompleted.value = true;
     saveState();
-    showNotice("Timer finished", "Your countdown has reached zero.");
     return;
   }
+
+  await store.update((settings) => {
+    settings.clockTimerEndAt = null;
+  });
+  if (store.settings?.clockTimerEndAt) return;
   timerIsPaused.value = true;
   saveState();
 }
 
-function resetTimer() {
-  timerEndAt.value = null;
+async function resetTimer() {
+  await store.update((settings) => {
+    settings.clockTimerEndAt = null;
+  });
+  if (store.settings?.clockTimerEndAt) return;
   timerRemainingMs.value = timerInputMs.value;
   timerIsPaused.value = false;
   timerCompleted.value = false;
@@ -208,72 +193,47 @@ function resetStopwatch() {
   saveState();
 }
 
-function addAlarm() {
+async function addAlarm() {
   if (!alarmTime.value || (alarmRepeat.value === "once" && alarmDate.value < todayKey())) return;
-  alarms.value.push({
+  const alarm = {
     id: Date.now() + "-" + Math.random().toString(36).slice(2),
     label: alarmLabel.value.trim() || "Alarm",
     time: alarmTime.value,
-    date: alarmRepeat.value === "once" ? alarmDate.value : "",
+    date: alarmRepeat.value === "once" ? alarmDate.value : null,
     repeat: alarmRepeat.value,
     enabled: true,
-    lastFiredKey: "",
+    lastFiredKey: null,
+  };
+
+  await store.update((settings) => {
+    settings.clockAlarms = [...(settings.clockAlarms ?? []), alarm]
+      .sort((left, right) => left.time.localeCompare(right.time));
   });
-  alarms.value.sort((a, b) => a.time.localeCompare(b.time));
   alarmLabel.value = "";
-  saveState();
 }
 
-function toggleAlarm(alarm) {
-  alarm.enabled = !alarm.enabled;
-  saveState();
+async function toggleAlarm(alarm) {
+  await store.update((settings) => {
+    const target = settings.clockAlarms.find((item) => item.id === alarm.id);
+    if (target) target.enabled = !target.enabled;
+  });
 }
 
-function deleteAlarm(id) {
-  alarms.value = alarms.value.filter((alarm) => alarm.id !== id);
-  saveState();
-}
-
-function checkAlarms(currentTime) {
-  const date = todayKey(currentTime);
-  const clock = pad(currentTime.getHours()) + ":" + pad(currentTime.getMinutes());
-  let changed = false;
-
-  for (const alarm of alarms.value) {
-    if (!alarm.enabled) continue;
-    if (alarm.repeat === "once" && alarm.date < date) {
-      alarm.enabled = false;
-      changed = true;
-      continue;
-    }
-    const isToday = alarm.repeat === "daily" || alarm.date === date;
-    if (!isToday || alarm.time !== clock) continue;
-
-    const occurrenceKey = alarm.repeat === "daily" ? date : alarm.date + " " + alarm.time;
-    if (alarm.lastFiredKey === occurrenceKey) continue;
-
-    alarm.lastFiredKey = occurrenceKey;
-    if (alarm.repeat === "once") alarm.enabled = false;
-    showNotice(alarm.label, "Alarm · " + alarm.time);
-    changed = true;
-  }
-
-  if (changed) saveState();
+async function deleteAlarm(id) {
+  await store.update((settings) => {
+    settings.clockAlarms = settings.clockAlarms.filter((alarm) => alarm.id !== id);
+  });
 }
 
 function tick() {
   now.value = Date.now();
 
-  if (timerEndAt.value && now.value >= timerEndAt.value) {
-    timerEndAt.value = null;
+  if (timerEndAt.value && now.value >= timerEndAt.value && !timerCompleted.value) {
     timerRemainingMs.value = 0;
     timerCompleted.value = true;
     timerIsPaused.value = false;
     saveState();
-    showNotice("Timer finished", "Your countdown has reached zero.");
   }
-
-  checkAlarms(new Date(now.value));
 }
 
 onMounted(() => {
