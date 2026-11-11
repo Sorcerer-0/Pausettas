@@ -3,7 +3,8 @@ pub mod service;
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager};
+use chrono::Utc;
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::{AppSchedulerService, AppSettingsService};
 use crate::reminder_window;
@@ -32,6 +33,28 @@ fn tick(app: &AppHandle) {
             return;
         }
     };
+
+    let clock_alerts = match app
+        .state::<AppSettingsService>()
+        .take_due_clock_alerts(Utc::now())
+    {
+        Ok(alerts) => alerts,
+        Err(error) => {
+            log::error!("could not check clock alarms and timer: {error}");
+            Vec::new()
+        }
+    };
+
+    for (title, description) in &clock_alerts {
+        if let Err(error) =
+            reminder_window::show_clock_alert(app, title, description, settings.sound_enabled)
+        {
+            log::error!("could not show clock alert '{title}': {error}");
+        }
+    }
+    if !clock_alerts.is_empty() {
+        let _ = app.emit(crate::tray::SETTINGS_CHANGED_EVENT, ());
+    }
 
     let scheduler = app.state::<AppSchedulerService>();
     if let Some(category) = scheduler.tick(&settings) {
