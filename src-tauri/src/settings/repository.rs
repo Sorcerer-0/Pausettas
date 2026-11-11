@@ -6,7 +6,7 @@ use rusqlite::{params, Connection};
 
 use super::error::SettingsError;
 use super::model::{
-    format_time_of_day, parse_time_of_day, Categories, CategoryKey, CategorySettings, IdlePause,
+    format_time_of_day, parse_time_of_day, Categories, CategoryKey, CategorySettings, ClockAlarm, IdlePause,
     PauseKind, PauseState, QuietHours, Settings,
 };
 
@@ -296,4 +296,29 @@ mod tests {
 
         assert_eq!(repository.load().unwrap(), settings);
     }
+
+    #[test]
+    fn clock_tools_round_trip_through_the_database() {
+        let repository = SqliteSettingsRepository::open_in_memory().unwrap();
+        let mut settings = Settings::default();
+        settings.clock_alarms.push(ClockAlarm {
+            id: "wake-up".into(),
+            label: "Wake up".into(),
+            time: time_of_day(7, 45),
+            date: Some("2026-11-12".into()),
+            repeat: "once".into(),
+            enabled: true,
+            last_fired_key: None,
+        });
+        settings.clock_timer_end_at = Some(
+            DateTime::parse_from_rfc3339("2026-11-12T01:30:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+        );
+
+        repository.save(&settings).unwrap();
+
+        assert_eq!(repository.load().unwrap(), settings);
+    }
+
 }
