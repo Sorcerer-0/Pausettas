@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/Sorcerer-0/Pausettas/compare/v0.2.2...v0.2.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* keep reminder popups open until dismissed ([1681704](https://github.com/Sorcerer-0/Pausettas/commit/1681704b5903435ee742969d5b6cccc28cfd2910))
+
 ## [0.2.2](https://github.com/MasihTak/Pausetta/compare/v0.2.1...v0.2.2) (2026-10-28)
 
 
