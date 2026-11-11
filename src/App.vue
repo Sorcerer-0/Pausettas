@@ -92,7 +92,10 @@ function openAuthorSite() {
             class="tools-button"
             @click="screen = 'tools'"
           >
-            <UiIcon name="timer" :size="14" />
+            <UiIcon
+              name="timer"
+              :size="14"
+            />
             Clock tools
           </button>
           <button
@@ -128,7 +131,11 @@ function openAuthorSite() {
           aria-label="About"
           @click="screen = 'about'"
         >
-          <UiIcon name="info" :size="15" :stroke-width="1.8" />
+          <UiIcon
+            name="info"
+            :size="15"
+            :stroke-width="1.8"
+          />
         </button>
       </template>
 
@@ -178,7 +185,10 @@ function openAuthorSite() {
   </div>
 </template>
 
-<style scoped lang="scss">
+<style
+  scoped
+  lang="scss"
+>
 .app {
   display: flex;
   flex-direction: column;
