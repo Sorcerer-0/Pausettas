@@ -327,7 +327,7 @@ onUnmounted(() => {
             type="number"
             min="0"
             max="59"
-            :disabled="timerIsRunning"
+            :disabled="timerIsRunning || timerIsPaused"
           />
         </label>
         <label>
@@ -350,7 +350,7 @@ onUnmounted(() => {
           :disabled="(timerIsPaused ? timerRemainingMs : timerInputMs) <= 0"
           @click="startTimer"
         >
-          {{ timerCompleted ? "Start again" : "Start" }}
+          {{ timerIsPaused ? "Resume" : timerCompleted ? "Start again" : "Start" }}
         </button>
         <button
           v-else
