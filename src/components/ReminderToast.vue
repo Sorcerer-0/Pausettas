@@ -366,24 +366,6 @@ function snooze() {
   font-weight: 500;
 }
 
-.toast__progress {
-  width: 100%;
-  height: 3px;
-  background: color-mix(in srgb, var(--cat) 16%, transparent);
-}
-
-.toast__progress-bar {
-  width: 100%;
-  height: 100%;
-  background: var(--cat);
-  // The duration is bound inline to the same value as the dismiss timer.
-  animation: progress-sweep linear reverse forwards;
-
-  .toast:hover & {
-    animation-play-state: paused;
-  }
-}
-
 @media (prefers-color-scheme: dark) {
   .toast {
     --cat-ink: var(--cat);
@@ -430,12 +412,4 @@ function snooze() {
   }
 }
 
-@keyframes progress-sweep {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
 </style>
