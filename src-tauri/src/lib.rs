@@ -71,7 +71,6 @@ pub fn run() {
             commands::resume_reminders,
             commands::close_reminder,
             commands::set_toast_card_bounds,
-            commands::show_clock_alert,
             commands::snooze_reminder,
         ])
         .build(tauri::generate_context!())
