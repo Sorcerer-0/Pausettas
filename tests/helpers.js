@@ -11,6 +11,8 @@ export function makeSettings(overrides = {}) {
       movement: { enabled: true, intervalMinutes: 45 },
       hydration: { enabled: false, intervalMinutes: 60 },
     },
+    clockAlarms: [],
+    clockTimerEndAt: null,
     quietHours: { enabled: true, start: "22:00", end: "08:00" },
     idlePause: { enabled: true, minutes: 5 },
     launchOnLogin: false,
