@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveTime, ParseError, Timelike, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, ParseError, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::error::SettingsError;
@@ -190,6 +190,24 @@ fn default_custom_time() -> NaiveTime {
     time_of_day(9, 0)
 }
 
+/// A clock alarm persisted independently of the Settings window.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClockAlarm {
+    pub id: String,
+    pub label: String,
+    #[serde(with = "time_of_day_text")]
+    pub time: NaiveTime,
+    /// Local YYYY-MM-DD date for one-time alarms; absent for daily alarms.
+    #[serde(default)]
+    pub date: Option<String>,
+    /// "daily" or "once".
+    pub repeat: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub last_fired_key: Option<String>,
+}
+
 impl Default for CustomReminder {
     fn default() -> Self {
         Self {
@@ -210,6 +228,10 @@ pub struct Settings {
     pub categories: Categories,
     #[serde(default)]
     pub custom_reminders: Vec<CustomReminder>,
+    #[serde(default)]
+    pub clock_alarms: Vec<ClockAlarm>,
+    #[serde(default)]
+    pub clock_timer_end_at: Option<DateTime<Utc>>,
     pub quiet_hours: QuietHours,
     pub idle_pause: IdlePause,
     pub launch_on_login: bool,
@@ -224,6 +246,8 @@ impl Default for Settings {
         Self {
             categories: Categories::default(),
             custom_reminders: Vec::new(),
+            clock_alarms: Vec::new(),
+            clock_timer_end_at: None,
             quiet_hours: QuietHours::default(),
             idle_pause: IdlePause {
                 enabled: true,
@@ -261,6 +285,25 @@ impl Settings {
             }
             if reminder.schedule_type == "interval" && !(1..=1440).contains(&reminder.interval_minutes) {
                 return Err(SettingsError::Validation("custom reminder interval must be 1–1440 minutes".into()));
+            }
+        }
+
+        for alarm in &self.clock_alarms {
+            if alarm.id.trim().is_empty() || alarm.id.len() > 100 {
+                return Err(SettingsError::Validation("clock alarm id must be 1–100 characters".into()));
+            }
+            if alarm.label.trim().is_empty() || alarm.label.len() > 60 {
+                return Err(SettingsError::Validation("clock alarm name must be 1–60 characters".into()));
+            }
+            if !["daily", "once"].contains(&alarm.repeat.as_str()) {
+                return Err(SettingsError::Validation("clock alarm repeat must be daily or once".into()));
+            }
+            if alarm.repeat == "once" {
+                let Some(date) = alarm.date.as_deref() else {
+                    return Err(SettingsError::Validation("one-time clock alarms need a date".into()));
+                };
+                NaiveDate::parse_from_str(date, "%Y-%m-%d")
+                    .map_err(|_| SettingsError::Validation("clock alarm date must be YYYY-MM-DD".into()))?;
             }
         }
 
