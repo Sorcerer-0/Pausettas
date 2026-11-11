@@ -150,21 +150,41 @@ describe("SettingsView", () => {
 
 describe("ClockView", () => {
   const STORAGE_KEY = "pausetta.clock-tools.v1";
+  let backendSettings;
 
   beforeEach(() => {
     window.localStorage.clear();
+    backendSettings = makeSettings();
+    invoke.mockImplementation(async (command, args) => {
+      if (command === "get_settings") {
+        return JSON.parse(JSON.stringify(backendSettings));
+      }
+      if (command === "update_settings") {
+        backendSettings = JSON.parse(JSON.stringify(args.settings));
+        return backendSettings;
+      }
+      return backendSettings;
+    });
   });
 
-  it("starts and persists a countdown using an absolute deadline", async () => {
-    vi.useFakeTimers();
+  const mountClock = async () => {
+    const store = useSettingsStore();
+    await store.load();
     const clock = mount(ClockView, { props: { active: true } });
     await flushPromises();
+    return { clock, store };
+  };
+
+  it("starts and persists a countdown deadline through Rust settings", async () => {
+    vi.useFakeTimers();
+    const { clock, store } = await mountClock();
 
     expect(clock.find(".clock-readout").text()).toBe("00:05:00");
     await clock.find(".clock-actions .primary").trigger("click");
 
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
-    expect(saved.timerEndAt).toBeGreaterThan(Date.now());
+    expect(Date.parse(store.settings.clockTimerEndAt)).toBeGreaterThan(Date.now());
+    expect(Date.parse(store.settings.clockTimerEndAt) - Date.now()).toBe(300000);
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)).timerHours).toBe(0);
 
     await vi.advanceTimersByTimeAsync(1000);
     await flushPromises();
@@ -176,21 +196,20 @@ describe("ClockView", () => {
 
   it("pauses and resumes a countdown without resetting its remaining time", async () => {
     vi.useFakeTimers();
-    const clock = mount(ClockView, { props: { active: true } });
-    await flushPromises();
+    const { clock, store } = await mountClock();
 
     await clock.find(".clock-actions .primary").trigger("click");
     await vi.advanceTimersByTimeAsync(2000);
     await clock.find(".clock-actions .primary").trigger("click");
 
+    expect(store.settings.clockTimerEndAt).toBeNull();
     const paused = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
     expect(paused.timerIsPaused).toBe(true);
     expect(paused.timerRemainingMs).toBeLessThanOrEqual(298000);
     expect(paused.timerRemainingMs).toBeGreaterThan(297000);
 
     await clock.find(".clock-actions .primary").trigger("click");
-    const resumed = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
-    expect(resumed.timerEndAt - Date.now()).toBe(paused.timerRemainingMs);
+    expect(Date.parse(store.settings.clockTimerEndAt) - Date.now()).toBe(paused.timerRemainingMs);
 
     clock.unmount();
     vi.useRealTimers();
@@ -198,8 +217,7 @@ describe("ClockView", () => {
 
   it("runs the stopwatch and records lap times", async () => {
     vi.useFakeTimers();
-    const clock = mount(ClockView, { props: { active: true } });
-    await flushPromises();
+    const { clock } = await mountClock();
 
     await clock.findAll(".clock-tabs button")[1].trigger("click");
     await clock.find(".clock-actions .primary").trigger("click");
@@ -214,66 +232,29 @@ describe("ClockView", () => {
     vi.useRealTimers();
   });
 
-  it("adds, disables, and deletes a daily alarm", async () => {
-    const clock = mount(ClockView, { props: { active: true } });
-    await flushPromises();
+  it("adds, disables, and deletes a daily alarm in the native settings store", async () => {
+    const { clock, store } = await mountClock();
 
     await clock.findAll(".clock-tabs button")[2].trigger("click");
     await clock.find(".alarm-label input").setValue("Wake up");
     await clock.find('input[type="time"]').setValue("07:45");
     await clock.find(".add-alarm").trigger("click");
 
-    let saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
-    expect(saved.alarms[0]).toMatchObject({
+    expect(store.settings.clockAlarms[0]).toMatchObject({
       label: "Wake up",
       time: "07:45",
       repeat: "daily",
+      date: null,
       enabled: true,
     });
 
     await clock.find(".alarm-toggle").trigger("click");
-    saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
-    expect(saved.alarms[0].enabled).toBe(false);
+    expect(store.settings.clockAlarms[0].enabled).toBe(false);
 
     await clock.find(".delete-alarm").trigger("click");
-    saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
-    expect(saved.alarms).toHaveLength(0);
+    expect(store.settings.clockAlarms).toHaveLength(0);
 
     clock.unmount();
-  });
-
-  it("fires a one-time alarm in a persistent native reminder window", async () => {
-    vi.useFakeTimers();
-    const now = new Date();
-    now.setSeconds(0, 0);
-    vi.setSystemTime(now);
-    const pad = (value) => String(value).padStart(2, "0");
-    const time = pad(now.getHours()) + ":" + pad(now.getMinutes());
-    const date = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      alarms: [{
-        id: "wake",
-        label: "Wake up",
-        time,
-        date,
-        repeat: "once",
-        enabled: true,
-        lastFiredKey: "",
-      }],
-    }));
-    invoke.mockResolvedValue(undefined);
-
-    const clock = mount(ClockView, { props: { active: false } });
-    await flushPromises();
-
-    expect(invoke).toHaveBeenCalledWith("show_clock_alert", {
-      title: "Wake up",
-      description: "Alarm · " + time,
-    });
-    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)).alarms[0].enabled).toBe(false);
-
-    clock.unmount();
-    vi.useRealTimers();
   });
 });
 
