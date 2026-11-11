@@ -10,9 +10,6 @@ import { useSettingsStore } from "../stores/settings.js";
 const store = useSettingsStore();
 // A toast shows one reminder for its whole life: Rust opens a new window for the next one.
 const categoryKey = window.__PAUSETTA_REMINDER_CATEGORY__;
-// Set by Rust in reminder_window.rs, from the same platform check that positions the window.
-const isTopAnchored = window.__PAUSETTA_REMINDER_ANCHOR__ === "top";
-
 
 const card = ref(null);
 
@@ -56,7 +53,7 @@ function snooze() {
 <template>
   <div
     class="toast-stage"
-    :class="{ 'is-top': isTopAnchored, 'is-centered': isCustom }"
+    class="toast-stage"
   >
     <article
       ref="card"
@@ -69,7 +66,7 @@ function snooze() {
       <div class="toast__content">
         <header class="toast__header">
           <span class="toast__mark">
-            <AppMark :size="11" />
+            <AppMark :size="18" />
           </span>
           <span class="toast__app-name">Pausetta</span>
           <span v-if="isCustom" class="toast__chip">Custom reminder</span>
@@ -83,8 +80,8 @@ function snooze() {
           >
             <UiIcon
               name="close"
-              :size="9"
-              :stroke-width="2.4"
+              :size="18"
+              :stroke-width="2.2"
             />
           </button>
         </header>
@@ -95,10 +92,10 @@ function snooze() {
             <CategoryIcon
               v-if="!isCustom"
               :category="categoryKey"
-              :size="23"
+              :size="42"
               class="toast__tile-icon"
             />
-            <AppMark v-else :size="23" />
+            <AppMark v-else :size="42" />
           </div>
 
           <div class="toast__text">
@@ -141,47 +138,33 @@ function snooze() {
 <style scoped lang="scss">
 .toast-stage {
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  height: 100vh;
-  padding: 24px 28px 36px;
-
-  &.is-top {
-    align-items: flex-start;
-    padding: 12px 28px 36px;
-  }
-}
-
- .toast-stage.is-centered {
   align-items: center;
   justify-content: center;
-  padding: 0;
+  width: 100%;
+  height: 100vh;
+  padding: 20px;
 }
 
 .toast {
   --cat-ink: color-mix(in srgb, var(--cat) 86%, #1a0f0c);
 
   position: relative;
-  width: 352px;
-  overflow: hidden;
+  width: min(700px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
   border: 1px solid color-mix(in srgb, var(--cat) 26%, var(--win-border));
-  border-radius: 10px;
+  border-radius: 22px;
   background: var(--card);
-  box-shadow: var(--shadow), 0 18px 44px -12px color-mix(in srgb, var(--cat) 42%, transparent);
+  box-shadow: var(--shadow), 0 28px 70px -18px color-mix(in srgb, var(--cat) 42%, transparent);
   animation: toast-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
-
-  .is-top & {
-    border-radius: 18px;
-    animation-name: toast-in-from-top;
-  }
 }
 
 .toast__glow {
   position: absolute;
-  top: -58px;
-  right: -40px;
-  width: 180px;
-  height: 180px;
+  top: -100px;
+  right: -80px;
+  width: 320px;
+  height: 320px;
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(circle, color-mix(in srgb, var(--cat) 30%, transparent), transparent 70%);
@@ -189,14 +172,14 @@ function snooze() {
 
 .toast__content {
   position: relative;
-  padding: 14px 15px 13px;
+  padding: 30px 34px 28px;
 }
 
 .toast__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 13px;
+  margin-bottom: 24px;
 }
 
 .toast__mark {
@@ -204,15 +187,15 @@ function snooze() {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 17px;
-  height: 17px;
-  border-radius: 5px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 20%, var(--card));
   color: var(--accent);
 }
 
 .toast__app-name {
-  font-size: 10.5px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -220,11 +203,11 @@ function snooze() {
 }
 
 .toast__chip {
-  padding: 2.5px 8px;
+  padding: 5px 12px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--cat) 15%, var(--card));
   color: var(--cat-ink);
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -238,10 +221,10 @@ function snooze() {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text3);
   cursor: pointer;
@@ -255,7 +238,7 @@ function snooze() {
 .toast__main {
   display: flex;
   align-items: flex-start;
-  gap: 13px;
+  gap: 22px;
 }
 
 .toast__tile {
@@ -264,17 +247,17 @@ function snooze() {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: 76px;
+  height: 76px;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 22px;
   background: linear-gradient(
     150deg,
     color-mix(in srgb, var(--cat) 86%, #ffffff),
     color-mix(in srgb, var(--cat) 92%, #2a1410)
   );
   box-shadow:
-    0 6px 16px -4px color-mix(in srgb, var(--cat) 55%, transparent),
+    0 10px 28px -8px color-mix(in srgb, var(--cat) 55%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
   color: #ffffff;
 }
@@ -297,15 +280,16 @@ function snooze() {
 
 .toast__title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 29px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   color: var(--text);
 }
 
 .toast__body {
-  margin: 3px 0 0;
-  font-size: 12.5px;
+  margin: 9px 0 0;
+  font-size: 20px;
   line-height: 1.5;
   color: var(--text2);
   text-wrap: pretty;
@@ -314,20 +298,20 @@ function snooze() {
 .toast__cue {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 11px;
-  padding: 9px 11px;
+  gap: 16px;
+  margin-top: 21px;
+  padding: 16px 19px;
   border: 1px solid color-mix(in srgb, var(--cat) 20%, transparent);
-  border-radius: 12px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--cat) 9%, var(--card));
 }
 
 .toast__cue-text {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 17px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text2);
   text-wrap: pretty;
 }
@@ -335,32 +319,66 @@ function snooze() {
 .toast__actions {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 12px;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 23px;
 }
 
 .toast__primary,
 .toast__ghost {
-  padding: 7px 13px;
-  border-radius: 9px;
-  font-size: 12.5px;
+  padding: 12px 22px;
+  border-radius: 11px;
+  font-size: 17px;
   cursor: pointer;
 }
 
 .toast__primary {
   border: none;
   background: color-mix(in srgb, var(--cat) 94%, #2a1410);
-  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--cat) 60%, transparent);
+  box-shadow: 0 7px 18px -6px color-mix(in srgb, var(--cat) 60%, transparent);
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .toast__ghost {
-  padding-inline: 12px;
+  padding-inline: 20px;
   border: 1px solid var(--border-strong);
   background: transparent;
   color: var(--text2);
-  font-weight: 500;
+  font-weight: 550;
+}
+
+@media (max-width: 560px) {
+  .toast__content {
+    padding: 22px 20px;
+  }
+
+  .toast__main {
+    gap: 14px;
+  }
+
+  .toast__tile {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+  }
+
+  .toast__title {
+    font-size: 23px;
+  }
+
+  .toast__body {
+    font-size: 16px;
+  }
+
+  .toast__cue-text {
+    font-size: 14px;
+  }
+
+  .toast__primary,
+  .toast__ghost {
+    font-size: 14px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -399,13 +417,6 @@ function snooze() {
   from {
     opacity: 0;
     transform: translateY(14px) scale(0.97);
-  }
-}
-
-@keyframes toast-in-from-top {
-  from {
-    opacity: 0;
-    transform: translateY(-14px) scale(0.97);
   }
 }
 </style>
