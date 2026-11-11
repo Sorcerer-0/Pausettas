@@ -61,11 +61,12 @@ describe("ReminderToast", () => {
     expect(toast.find(selector).exists()).toBe(true);
   });
 
-  it("anchors to the top when Rust says the notification area is up there", async () => {
+  it("centers preset reminders regardless of the old platform anchor value", async () => {
     window.__PAUSETTA_REMINDER_ANCHOR__ = "top";
     const { toast } = await mountToast();
 
-    expect(toast.find(".toast-stage").classes()).toContain("is-top");
+    expect(toast.find(".toast-stage").classes()).toContain("is-centered");
+    expect(toast.find(".toast-stage").classes()).not.toContain("is-top");
   });
 
   it("asks Rust to close the window on the primary action", async () => {
@@ -109,61 +110,32 @@ describe("ReminderToast", () => {
     expect(toast.find(".toast__ghost").text()).toBe("Snooze 10 min");
   });
 
-  it("closes itself if nobody acts on it", async () => {
-    window.__PAUSETTA_REMINDER_CATEGORY__ = "posture";
+  it("stays visible when unattended and when the pointer enters or leaves", async () => {
     vi.useFakeTimers();
     const { toast } = await mountToast();
 
-    vi.advanceTimersByTime(13_999);
-    expect(invoke).not.toHaveBeenCalledWith("close_reminder");
-
-    vi.advanceTimersByTime(1);
-    expect(invoke).toHaveBeenCalledWith("close_reminder");
-    toast.unmount();
-  });
-
-  it("keeps an eye reminder up until its 20 second cue has run", async () => {
-    vi.useFakeTimers();
-    const { toast } = await mountToast();
-
-    vi.advanceTimersByTime(21_999);
-    expect(invoke).not.toHaveBeenCalledWith("close_reminder");
-
-    vi.advanceTimersByTime(1);
-    expect(invoke).toHaveBeenCalledWith("close_reminder");
-    toast.unmount();
-  });
-
-  it("holds the countdown while the pointer is on the toast", async () => {
-    window.__PAUSETTA_REMINDER_CATEGORY__ = "posture";
-    vi.useFakeTimers();
-    const { toast } = await mountToast();
-
-    vi.advanceTimersByTime(10_000);
     await toast.find(".toast").trigger("mouseenter");
     vi.advanceTimersByTime(60_000);
-    expect(invoke).not.toHaveBeenCalledWith("close_reminder");
-
     await toast.find(".toast").trigger("mouseleave");
-    vi.advanceTimersByTime(3_999);
+    vi.advanceTimersByTime(60_000);
+
+    expect(toast.find(".toast").exists()).toBe(true);
     expect(invoke).not.toHaveBeenCalledWith("close_reminder");
-    vi.advanceTimersByTime(1);
-    expect(invoke).toHaveBeenCalledWith("close_reminder");
     toast.unmount();
   });
 
   it("tells Rust where the card is, again once its entrance animation has moved it", async () => {
-    const card = (left) => ({ left, top: 100, right: left + 352, bottom: 280 });
+    const card = (left) => ({ left, top: 30, right: left + 700, bottom: 510 });
     const { toast } = await mountToast();
     const cardElement = toast.find(".toast").element;
     expect(invoke).toHaveBeenCalledWith("set_toast_card_bounds", {
       bounds: { left: 0, top: 0, right: 0, bottom: 0 },
     });
 
-    cardElement.getBoundingClientRect = () => card(28);
+    cardElement.getBoundingClientRect = () => card(30);
     await toast.find(".toast").trigger("animationend");
 
-    expect(invoke).toHaveBeenLastCalledWith("set_toast_card_bounds", { bounds: card(28) });
+    expect(invoke).toHaveBeenLastCalledWith("set_toast_card_bounds", { bounds: card(30) });
     toast.unmount();
   });
 
@@ -188,13 +160,5 @@ describe("ReminderToast", () => {
     toast.unmount();
   });
 
-  it("drops its timer when unmounted", async () => {
-    vi.useFakeTimers();
-    const { toast } = await mountToast();
 
-    toast.unmount();
-    vi.advanceTimersByTime(30_000);
-
-    expect(invoke).not.toHaveBeenCalledWith("close_reminder");
-  });
 });
